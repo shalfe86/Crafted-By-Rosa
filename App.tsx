@@ -6,6 +6,7 @@ import Gallery from './pages/Gallery';
 import CustomRequest from './pages/CustomRequest';
 import About from './pages/About';
 import Admin from './pages/Admin';
+import ProductDetail from './pages/ProductDetail';
 import { AnimatePresence } from 'framer-motion';
 import { PortfolioProvider } from './context/PortfolioContext';
 
@@ -31,6 +32,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/gallery" element={<Gallery />} />
+              <Route path="/product/:id" element={<ProductDetail />} />
               <Route path="/custom-request" element={<CustomRequest />} />
               <Route path="/about" element={<About />} />
               <Route path="/admin" element={<Admin />} />
