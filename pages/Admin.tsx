@@ -5,13 +5,16 @@ import { PortfolioItem, ArtistProfile } from '../types';
 import { 
   Trash2, Plus, Edit2, Save, X, Lock, RotateCcw, 
   LayoutDashboard, Image as ImageIcon, UploadCloud, 
-  BarChart3, ShoppingCart, TrendingUp, Users, User
+  BarChart3, ShoppingCart, TrendingUp, Users, User, Loader2, LogOut
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 const Admin: React.FC = () => {
-  const { items, categories, artistProfile, addItem, updateItem, deleteItem, addCategory, deleteCategory, updateArtistProfile, resetToDefaults } = usePortfolio();
+  const { items, categories, artistProfile, addItem, updateItem, deleteItem, addCategory, deleteCategory, updateArtistProfile, resetToDefaults, isLoading: contextLoading } = usePortfolio();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'portfolio' | 'artist'>('overview');
   
   // Edit/Add State
@@ -24,108 +27,142 @@ const Admin: React.FC = () => {
     imageUrl: '',
   });
 
+  // State for file objects (needed for Supabase Upload)
+  const [newItemFile, setNewItemFile] = useState<File | null>(null);
+  const [editItemFile, setEditItemFile] = useState<File | null>(null);
+  const [artistItemFile, setArtistItemFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   // Artist Profile State
   const [artistForm, setArtistForm] = useState<ArtistProfile>(artistProfile);
   const [artistSaved, setArtistSaved] = useState(false);
 
-  // Update artist form if context changes (e.g. after reset)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const artistImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Check for active session on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Update artist form if context changes (e.g. after reset or initial fetch)
   useEffect(() => {
     setArtistForm(artistProfile);
   }, [artistProfile]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const artistImageInputRef = useRef<HTMLInputElement>(null);
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'Scarlett2018') {
-      setIsAuthenticated(true);
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      if (error) throw error;
+      // State update handled by onAuthStateChange listener
+    } catch (error: any) {
+      alert(error.message || 'Login failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  /**
+   * Helper to upload file to Supabase Storage
+   */
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('site-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('site-images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+      alert(`Image upload failed: ${error.message}`);
+      return null;
+    }
+  };
+
+  // --- Image Selection Handlers (Previews) ---
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent, mode: 'new' | 'edit' | 'artist') => {
+    let file: File | undefined;
+
+    if ('dataTransfer' in e) {
+       e.preventDefault();
+       file = e.dataTransfer.files[0];
     } else {
-      alert('Incorrect password');
+       file = e.target.files?.[0];
     }
-  };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEditMode: boolean) => {
-    const file = e.target.files?.[0];
     if (file) {
-      if (file.type === 'image/jpeg' || file.type === 'image/png') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const result = event.target?.result as string;
-          if (isEditMode) {
-            setEditForm(prev => ({ ...prev, imageUrl: result }));
-          } else {
-            setNewItem(prev => ({ ...prev, imageUrl: result }));
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
+      if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
         alert('Only JPEG and PNG files are allowed.');
+        return;
+      }
+
+      // Create local preview
+      const previewUrl = URL.createObjectURL(file);
+
+      // Set State
+      if (mode === 'new') {
+        setNewItem(prev => ({ ...prev, imageUrl: previewUrl }));
+        setNewItemFile(file);
+      } else if (mode === 'edit') {
+        setEditForm(prev => ({ ...prev, imageUrl: previewUrl }));
+        setEditItemFile(file);
+      } else if (mode === 'artist') {
+        setArtistForm(prev => ({ ...prev, imageUrl: previewUrl }));
+        setArtistItemFile(file);
       }
     }
   };
 
-  const handleDrop = (e: React.DragEvent, isEditMode: boolean) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.type === 'image/jpeg' || file.type === 'image/png') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const result = event.target?.result as string;
-          if (isEditMode) {
-            setEditForm(prev => ({ ...prev, imageUrl: result }));
-          } else {
-            setNewItem(prev => ({ ...prev, imageUrl: result }));
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
-        alert('Only JPEG and PNG files are allowed.');
-      }
-    }
-  };
+  // --- Save Actions ---
 
-  // Artist Profile Image Handling
-  const handleArtistImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type === 'image/jpeg' || file.type === 'image/png') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            setArtistForm(prev => ({ ...prev, imageUrl: event.target?.result as string }));
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-  }
-
-  const handleArtistDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.type === 'image/jpeg' || file.type === 'image/png') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            setArtistForm(prev => ({ ...prev, imageUrl: event.target?.result as string }));
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-  }
-
-  const handleSaveArtistProfile = () => {
-    updateArtistProfile(artistForm);
-    setArtistSaved(true);
-    setTimeout(() => setArtistSaved(false), 2000);
-  }
-
-
-  const handleSaveNew = () => {
+  const handleSaveNew = async () => {
     if (newItem.title && newItem.description && newItem.category && newItem.imageUrl) {
-      addItem(newItem as Omit<PortfolioItem, 'id'>);
+      setIsUploading(true);
+      let finalImageUrl = newItem.imageUrl;
+
+      if (newItemFile) {
+        const uploadedUrl = await uploadImage(newItemFile);
+        if (uploadedUrl) finalImageUrl = uploadedUrl;
+        else {
+           setIsUploading(false);
+           return; // Abort if upload failed
+        }
+      }
+
+      await addItem({ ...newItem, imageUrl: finalImageUrl } as Omit<PortfolioItem, 'id'>);
+      
       setIsAdding(false);
       setNewItem({ category: categories[0], imageUrl: '' });
+      setNewItemFile(null);
+      setIsUploading(false);
     } else {
       alert('Please fill in all fields and upload an image');
     }
@@ -134,14 +171,49 @@ const Admin: React.FC = () => {
   const startEdit = (item: PortfolioItem) => {
     setIsEditing(item.id);
     setEditForm({ ...item });
+    setEditItemFile(null); // Reset file
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (editForm.id && editForm.title) {
-      updateItem(editForm as PortfolioItem);
+      setIsUploading(true);
+      let finalImageUrl = editForm.imageUrl || '';
+
+      if (editItemFile) {
+        const uploadedUrl = await uploadImage(editItemFile);
+        if (uploadedUrl) finalImageUrl = uploadedUrl;
+        else {
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      await updateItem({ ...editForm, imageUrl: finalImageUrl } as PortfolioItem);
       setIsEditing(null);
+      setEditItemFile(null);
+      setIsUploading(false);
     }
   };
+
+  const handleSaveArtistProfile = async () => {
+    setIsUploading(true);
+    let finalImageUrl = artistForm.imageUrl;
+
+    if (artistItemFile) {
+      const uploadedUrl = await uploadImage(artistItemFile);
+      if (uploadedUrl) finalImageUrl = uploadedUrl;
+      else {
+        setIsUploading(false);
+        return;
+      }
+    }
+
+    await updateArtistProfile({ ...artistForm, imageUrl: finalImageUrl });
+    setArtistItemFile(null);
+    setIsUploading(false);
+    setArtistSaved(true);
+    setTimeout(() => setArtistSaved(false), 2000);
+  }
 
   const handleAddCategory = () => {
     if(newCategory.trim()) {
@@ -161,18 +233,31 @@ const Admin: React.FC = () => {
           <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
             <Lock className="text-amber-500" />
           </div>
-          <h2 className="text-2xl font-serif text-white mb-6">Atelier Access</h2>
+          <h2 className="text-2xl font-serif text-white mb-2">Atelier Access</h2>
+          <p className="text-gray-400 text-sm mb-6">Please sign in with your Supabase credentials.</p>
           <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-black border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-amber-500 outline-none"
+              placeholder="admin@email.com"
+              required
+            />
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-center focus:border-amber-500 outline-none"
-              placeholder="Enter Password"
-              autoFocus
+              className="w-full bg-black border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-amber-500 outline-none"
+              placeholder="Password"
+              required
             />
-            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white py-4 rounded-xl font-medium transition-colors">
-              Unlock
+            <button 
+              type="submit" 
+              disabled={authLoading}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white py-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {authLoading ? <Loader2 className="animate-spin" size={20} /> : 'Unlock'}
             </button>
           </form>
         </motion.div>
@@ -206,6 +291,15 @@ const Admin: React.FC = () => {
                 className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'artist' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
               >
                 <User size={20} /> Artist Profile
+              </button>
+            </div>
+            
+            <div className="mt-6 pt-6 border-t border-white/10">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+              >
+                <LogOut size={20} /> Sign Out
               </button>
             </div>
           </div>
@@ -342,7 +436,7 @@ const Admin: React.FC = () => {
                         <div 
                           className="border-2 border-dashed border-white/20 rounded-xl p-4 text-center hover:bg-white/5 transition-colors cursor-pointer relative"
                           onDragOver={e => e.preventDefault()}
-                          onDrop={e => handleDrop(e, false)}
+                          onDrop={e => handleImageSelect(e, 'new')}
                           onClick={() => fileInputRef.current?.click()}
                         >
                           <input 
@@ -350,7 +444,7 @@ const Admin: React.FC = () => {
                             ref={fileInputRef}
                             hidden 
                             accept="image/png, image/jpeg"
-                            onChange={e => handleImageUpload(e, false)}
+                            onChange={e => handleImageSelect(e, 'new')}
                           />
                           {newItem.imageUrl ? (
                             <img src={newItem.imageUrl} className="h-32 mx-auto object-cover rounded" alt="Preview" />
@@ -374,85 +468,110 @@ const Admin: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 mt-6">
-                      <button onClick={() => setIsAdding(false)} className="px-6 py-2 text-gray-400 hover:text-white">Cancel</button>
-                      <button onClick={handleSaveNew} className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200">Save Item</button>
+                      <button 
+                        onClick={() => setIsAdding(false)} 
+                        className="px-6 py-2 text-gray-400 hover:text-white"
+                        disabled={isUploading}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleSaveNew} 
+                        disabled={isUploading}
+                        className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 flex items-center gap-2"
+                      >
+                        {isUploading && <Loader2 className="animate-spin" size={16} />}
+                        Save Item
+                      </button>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* List Items */}
-              <div className="grid gap-4">
-                {items.map(item => (
-                  <motion.div 
-                    layout
-                    key={item.id} 
-                    className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col md:flex-row gap-6 items-center"
-                  >
-                    <div className="relative group w-20 h-20 flex-shrink-0">
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover rounded-lg bg-white/10" />
-                      {isEditing === item.id && (
-                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg cursor-pointer">
-                            <label className="cursor-pointer p-2">
-                               <UploadCloud size={16} />
-                               <input type="file" hidden accept="image/png, image/jpeg" onChange={e => handleImageUpload(e, true)} />
-                            </label>
-                         </div>
-                      )}
-                    </div>
-                    
-                    {isEditing === item.id ? (
-                      <div className="flex-1 w-full grid md:grid-cols-2 gap-4">
-                        <input 
-                          value={editForm.title} 
-                          onChange={e => setEditForm({...editForm, title: e.target.value})}
-                          className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
-                        />
-                        <input 
-                          value={editForm.price} 
-                          onChange={e => setEditForm({...editForm, price: e.target.value})}
-                          className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
-                        />
-                        <select 
-                          value={editForm.category}
-                          onChange={e => setEditForm({...editForm, category: e.target.value})}
-                          className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
-                        >
-                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <textarea 
-                          value={editForm.description} 
-                          onChange={e => setEditForm({...editForm, description: e.target.value})}
-                          className="bg-black/50 border border-white/10 rounded p-2 md:col-span-2 focus:border-amber-500 outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex-1 text-center md:text-left">
-                        <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
-                          <h3 className="text-xl font-serif">{item.title}</h3>
-                          <span className="text-xs px-2 py-0.5 bg-white/10 rounded-full text-gray-400 w-fit mx-auto md:mx-0">{item.category}</span>
+              {contextLoading ? (
+                  <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-amber-500" size={32} />
+                  </div>
+              ) : (
+                <div className="grid gap-4">
+                    {items.map(item => (
+                    <motion.div 
+                        layout
+                        key={item.id} 
+                        className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col md:flex-row gap-6 items-center"
+                    >
+                        <div className="relative group w-20 h-20 flex-shrink-0">
+                        <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover rounded-lg bg-white/10" />
+                        {isEditing === item.id && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg cursor-pointer">
+                                <label className="cursor-pointer p-2">
+                                <UploadCloud size={16} />
+                                <input type="file" hidden accept="image/png, image/jpeg" onChange={e => handleImageSelect(e, 'edit')} />
+                                </label>
+                            </div>
+                        )}
                         </div>
-                        <p className="text-gray-400 text-sm mb-1">{item.description}</p>
-                        <p className="text-amber-500 font-medium">{item.price}</p>
-                      </div>
-                    )}
+                        
+                        {isEditing === item.id ? (
+                        <div className="flex-1 w-full grid md:grid-cols-2 gap-4">
+                            <input 
+                            value={editForm.title} 
+                            onChange={e => setEditForm({...editForm, title: e.target.value})}
+                            className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
+                            />
+                            <input 
+                            value={editForm.price} 
+                            onChange={e => setEditForm({...editForm, price: e.target.value})}
+                            className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
+                            />
+                            <select 
+                            value={editForm.category}
+                            onChange={e => setEditForm({...editForm, category: e.target.value})}
+                            className="bg-black/50 border border-white/10 rounded p-2 focus:border-amber-500 outline-none"
+                            >
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <textarea 
+                            value={editForm.description} 
+                            onChange={e => setEditForm({...editForm, description: e.target.value})}
+                            className="bg-black/50 border border-white/10 rounded p-2 md:col-span-2 focus:border-amber-500 outline-none"
+                            />
+                        </div>
+                        ) : (
+                        <div className="flex-1 text-center md:text-left">
+                            <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
+                            <h3 className="text-xl font-serif">{item.title}</h3>
+                            <span className="text-xs px-2 py-0.5 bg-white/10 rounded-full text-gray-400 w-fit mx-auto md:mx-0">{item.category}</span>
+                            </div>
+                            <p className="text-gray-400 text-sm mb-1">{item.description}</p>
+                            <p className="text-amber-500 font-medium">{item.price}</p>
+                        </div>
+                        )}
 
-                    <div className="flex gap-2">
-                      {isEditing === item.id ? (
-                        <>
-                          <button onClick={saveEdit} className="p-2 bg-green-900/50 text-green-400 rounded hover:bg-green-900"><Save size={18} /></button>
-                          <button onClick={() => setIsEditing(null)} className="p-2 bg-white/5 text-gray-400 rounded hover:bg-white/10"><X size={18} /></button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEdit(item)} className="p-2 bg-blue-900/30 text-blue-400 rounded hover:bg-blue-900/50"><Edit2 size={18} /></button>
-                          <button onClick={() => deleteItem(item.id)} className="p-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50"><Trash2 size={18} /></button>
-                        </>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+                        <div className="flex gap-2">
+                        {isEditing === item.id ? (
+                            <>
+                            <button 
+                                onClick={saveEdit} 
+                                disabled={isUploading}
+                                className="p-2 bg-green-900/50 text-green-400 rounded hover:bg-green-900 disabled:opacity-50"
+                            >
+                                {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            </button>
+                            <button onClick={() => setIsEditing(null)} disabled={isUploading} className="p-2 bg-white/5 text-gray-400 rounded hover:bg-white/10"><X size={18} /></button>
+                            </>
+                        ) : (
+                            <>
+                            <button onClick={() => startEdit(item)} className="p-2 bg-blue-900/30 text-blue-400 rounded hover:bg-blue-900/50"><Edit2 size={18} /></button>
+                            <button onClick={() => deleteItem(item.id)} className="p-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50"><Trash2 size={18} /></button>
+                            </>
+                        )}
+                        </div>
+                    </motion.div>
+                    ))}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -474,7 +593,7 @@ const Admin: React.FC = () => {
                         <div 
                           className="relative aspect-[3/4] bg-black/40 border-2 border-dashed border-white/10 rounded-xl overflow-hidden group cursor-pointer hover:border-amber-500/50 transition-colors"
                           onDragOver={e => e.preventDefault()}
-                          onDrop={handleArtistDrop}
+                          onDrop={e => handleImageSelect(e, 'artist')}
                           onClick={() => artistImageInputRef.current?.click()}
                         >
                              <img src={artistForm.imageUrl} className="w-full h-full object-cover" />
@@ -487,7 +606,7 @@ const Admin: React.FC = () => {
                                 hidden 
                                 ref={artistImageInputRef}
                                 accept="image/png, image/jpeg"
-                                onChange={handleArtistImageUpload} 
+                                onChange={e => handleImageSelect(e, 'artist')} 
                              />
                         </div>
                     </div>
@@ -525,9 +644,11 @@ const Admin: React.FC = () => {
                  <div className="flex justify-end mt-8">
                     <button 
                         onClick={handleSaveArtistProfile}
-                        className="bg-white text-black px-8 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors flex items-center gap-2"
+                        disabled={isUploading}
+                        className="bg-white text-black px-8 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
                     >
-                        <Save size={18} /> Save Changes
+                        {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                        Save Changes
                     </button>
                  </div>
               </div>
