@@ -21,7 +21,7 @@ const DEFAULT_ARTIST_PROFILE: ArtistProfile = {
   headline: "Crafting with",
   highlight: "Multifaceted Passion",
   description: "Hi, I'm Rosa. My creative journey doesn't follow a single path. I love the texture of natural fibers, the chemistry of bleach on fabric, and the endless possibilities of digital sublimation.\n\nFrom creating safe, intricate macrame toys for babies to designing bold custom shirts and painting abstracts on canvas, I pour my heart into every medium.\n\nI believe in making things that are personal. That's why I love working directly with people to create custom dream catchers, specific plant hanger sizes, or one-of-a-kind apparel that speaks to their style.",
-  imageUrl: "https://picsum.photos/800/1200?random=99"
+  imageUrl: "https://placehold.co/800x1200/18181b/a1a1aa?text=Upload+Photo"
 };
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
@@ -67,7 +67,13 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // 3. Fetch Artist Profile
-      const { data: profileData, error: profileError } = await supabase.from('artist_profile').select('*').limit(1);
+      // Order by ID descending to ensure we get the latest single profile entry if multiple exist
+      const { data: profileData, error: profileError } = await supabase
+        .from('artist_profile')
+        .select('*')
+        .order('id', { ascending: false })
+        .limit(1);
+
       if (profileError) console.error('Error fetching profile:', profileError);
       else if (profileData && profileData.length > 0) {
         const p = profileData[0];
@@ -75,7 +81,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             headline: p.headline,
             highlight: p.highlight,
             description: p.description,
-            imageUrl: p.image_url
+            imageUrl: p.image_url || DEFAULT_ARTIST_PROFILE.imageUrl
         });
       } else {
         // Use default if no row exists yet
@@ -177,7 +183,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const updateArtistProfile = async (profile: ArtistProfile) => {
     try {
         // Check if a profile exists
-        const { data: existing } = await supabase.from('artist_profile').select('id').limit(1);
+        const { data: existing } = await supabase.from('artist_profile').select('id').order('id', { ascending: false }).limit(1);
         
         let error;
         if (existing && existing.length > 0) {

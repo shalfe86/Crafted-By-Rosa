@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Home, Grid, MessageSquareHeart, User, ShoppingBag } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useCart } from '../context/CartContext';
 
 const Navigation: React.FC = () => {
   const navigate = useNavigate();
   const [secretCount, setSecretCount] = useState(0);
+  const { cartCount } = useCart();
 
   // Reset secret count if user stops clicking for 1 second
   useEffect(() => {
@@ -68,9 +70,27 @@ const Navigation: React.FC = () => {
         {/* Decorative separator */}
         <div className="w-px h-6 bg-white/10 mx-1"></div>
 
-        <button className="flex items-center justify-center w-12 h-12 rounded-full text-amber-400 hover:bg-amber-400/10 transition-colors">
+        <NavLink 
+          to="/cart"
+          className={({ isActive }) => `
+            relative flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300
+            ${isActive ? 'bg-amber-500 text-black' : 'text-amber-400 hover:bg-amber-400/10'}
+          `}
+        >
           <ShoppingBag size={20} />
-        </button>
+          <AnimatePresence>
+            {cartCount > 0 && (
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-black"
+              >
+                {cartCount}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </NavLink>
 
       </motion.nav>
     </div>

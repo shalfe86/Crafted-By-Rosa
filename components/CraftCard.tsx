@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, ShoppingBag } from 'lucide-react';
 import { PortfolioItem } from '../types';
+import { useCart } from '../context/CartContext';
 
 interface CraftCardProps {
   item: PortfolioItem;
@@ -10,6 +11,14 @@ interface CraftCardProps {
 }
 
 const CraftCard: React.FC<CraftCardProps> = ({ item, index }) => {
+  const { addToCart } = useCart();
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(item);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
@@ -29,6 +38,16 @@ const CraftCard: React.FC<CraftCardProps> = ({ item, index }) => {
             className="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0"
             loading="lazy"
           />
+
+          <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+             <button 
+                onClick={handleAddToCart}
+                className="p-3 bg-amber-500 text-black rounded-full hover:scale-110 transition-transform shadow-lg hover:bg-amber-400"
+                title="Add to Cart"
+             >
+                <ShoppingBag size={18} />
+             </button>
+          </div>
 
           <div className="absolute bottom-0 left-0 right-0 p-6 z-20 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
             <span className="inline-block px-2 py-1 mb-2 text-xs tracking-widest uppercase text-amber-200 bg-amber-900/30 backdrop-blur-sm rounded border border-amber-500/20">

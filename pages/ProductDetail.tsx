@@ -1,15 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MessageSquareHeart, Share2 } from 'lucide-react';
+import { ArrowLeft, MessageSquareHeart, Share2, ShoppingBag, Check } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useCart } from '../context/CartContext';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { items, isLoading } = usePortfolio();
+  const { addToCart } = useCart();
   const navigate = useNavigate();
+  const [added, setAdded] = useState(false);
   
   const item = items.find(i => i.id === id);
+
+  const handleAddToCart = () => {
+    if (item) {
+        addToCart(item);
+        setAdded(true);
+        setTimeout(() => setAdded(false), 2000);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -99,16 +110,27 @@ const ProductDetail: React.FC = () => {
                     </p>
 
                     <div className="pt-8 flex flex-col sm:flex-row gap-4">
+                        <button 
+                            onClick={handleAddToCart}
+                            className={`
+                                flex-1 py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-sm md:text-base
+                                ${added 
+                                    ? 'bg-green-600 text-white' 
+                                    : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20'
+                                }
+                            `}
+                        >
+                            {added ? <Check size={18} /> : <ShoppingBag size={18} />}
+                            {added ? 'Added to Bag' : 'Add to Bag'}
+                        </button>
+                        
                         <Link 
                             to="/custom-request"
-                            className="flex-1 bg-white text-black py-4 rounded-xl font-medium hover:bg-amber-50 transition-colors flex items-center justify-center gap-2 text-sm md:text-base"
+                            className="px-6 py-4 border border-white/20 rounded-xl hover:bg-white/5 transition-colors text-white flex items-center justify-center gap-2 whitespace-nowrap" 
+                            title="Request Custom Version"
                         >
-                            <MessageSquareHeart size={18} />
-                            Inquire / Request Custom
+                            <MessageSquareHeart size={18} /> Custom
                         </Link>
-                        <button className="px-6 py-4 border border-white/10 rounded-xl hover:bg-white/5 transition-colors text-white flex items-center justify-center" title="Share">
-                            <Share2 size={18} />
-                        </button>
                     </div>
 
                 </motion.div>
