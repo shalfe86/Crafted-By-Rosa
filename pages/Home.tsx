@@ -20,7 +20,7 @@ const Home: React.FC = () => {
             opacity: [0.3, 0.5, 0.3],
           }}
           transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] bg-amber-900/20 rounded-full blur-[120px]" 
+          className="absolute top-[-10%] right-[-10%] w-[500px] md:w-[800px] h-[500px] md:h-[800px] bg-amber-900/20 rounded-full blur-[80px] md:blur-[120px]" 
         />
         <motion.div 
           animate={{ 
@@ -28,7 +28,7 @@ const Home: React.FC = () => {
             x: [0, 50, 0],
           }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[100px]" 
+          className="absolute bottom-[-10%] left-[-10%] w-[400px] md:w-[600px] h-[400px] md:h-[600px] bg-indigo-900/20 rounded-full blur-[80px] md:blur-[100px]" 
         />
       </div>
 
@@ -36,15 +36,15 @@ const Home: React.FC = () => {
       <div className="relative z-10 container mx-auto px-6 h-screen flex flex-col justify-center items-center text-center">
         <motion.div 
           style={{ y: y1, opacity }}
-          className="space-y-8"
+          className="space-y-6 md:space-y-8"
         >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <span className="inline-block py-1 px-3 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm text-sm tracking-[0.3em] uppercase text-gray-400 mb-6">
-              Macrame • Bleach Art • DTF Prints • Painting
+            <span className="inline-block py-1.5 px-4 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm text-[10px] md:text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase text-gray-400 mb-2 md:mb-6">
+              Macrame • Bleach Art • DTF Prints
             </span>
           </motion.div>
 
@@ -52,7 +52,7 @@ const Home: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.2 }}
-            className="font-serif text-6xl md:text-8xl lg:text-9xl font-light leading-none tracking-tight bg-gradient-to-b from-white to-gray-600 bg-clip-text text-transparent"
+            className="font-serif text-5xl md:text-8xl lg:text-9xl font-light leading-[1.1] md:leading-none tracking-tight bg-gradient-to-b from-white to-gray-600 bg-clip-text text-transparent px-4"
           >
             Crafted <span className="font-serif italic text-amber-500">by</span> Rosa
           </motion.h1>
@@ -61,7 +61,7 @@ const Home: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 0.6 }}
-            className="max-w-xl mx-auto text-lg md:text-xl text-gray-400 font-light leading-relaxed"
+            className="max-w-xl mx-auto text-base md:text-xl text-gray-400 font-light leading-relaxed px-4"
           >
             A diverse portfolio of handmade creations. From delicate baby toys and dream catchers to custom sublimation and hand-painted apparel.
           </motion.p>
@@ -70,11 +70,11 @@ const Home: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8 }}
-            className="flex flex-col md:flex-row gap-6 justify-center items-center mt-12"
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 md:mt-12 w-full px-6"
           >
             <Link 
               to="/gallery" 
-              className="group relative px-8 py-4 bg-white text-black rounded-full overflow-hidden"
+              className="group relative px-8 py-4 bg-white text-black rounded-full overflow-hidden w-full sm:w-auto flex justify-center"
             >
               <div className="absolute inset-0 bg-amber-200 transform translate-y-full transition-transform duration-300 group-hover:translate-y-0" />
               <span className="relative font-medium tracking-wide flex items-center gap-2">
@@ -84,7 +84,7 @@ const Home: React.FC = () => {
             
             <Link 
               to="/custom-request" 
-              className="px-8 py-4 text-white border border-white/20 rounded-full hover:bg-white/5 transition-colors flex items-center gap-2"
+              className="px-8 py-4 text-white border border-white/20 rounded-full hover:bg-white/5 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               Start Custom Project
             </Link>
@@ -95,7 +95,7 @@ const Home: React.FC = () => {
       {/* Decorative Text Ring */}
       <motion.div 
         style={{ rotate: y2 }}
-        className="absolute -bottom-40 -right-40 w-[600px] h-[600px] opacity-5 pointer-events-none border border-white/20 rounded-full flex items-center justify-center"
+        className="absolute -bottom-40 -right-40 w-[300px] md:w-[600px] h-[300px] md:h-[600px] opacity-5 pointer-events-none border border-white/20 rounded-full flex items-center justify-center"
       >
         <div className="w-[80%] h-[80%] border border-white/10 rounded-full" />
       </motion.div>
