@@ -5,7 +5,8 @@ import { PortfolioItem, ArtistProfile } from '../types';
 import { 
   Trash2, Plus, Edit2, Save, X, Lock, RotateCcw, 
   LayoutDashboard, Image as ImageIcon, UploadCloud, 
-  BarChart3, ShoppingCart, TrendingUp, Users, User, Loader2, LogOut
+  BarChart3, ShoppingCart, TrendingUp, Users, User, Loader2, LogOut,
+  Eye, MousePointerClick
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -19,8 +20,15 @@ const Admin: React.FC = () => {
   
   // Dashboard Stats
   const [activeCartsCount, setActiveCartsCount] = useState(0);
-  const [totalTraffic, setTotalTraffic] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
+  
+  // Traffic Stats
+  const [trafficStats, setTrafficStats] = useState({
+    views: 0,
+    visitors: 0,
+    avg: 0
+  });
+  const [monthlyTraffic, setMonthlyTraffic] = useState<number[]>(new Array(12).fill(0));
   
   // Edit/Add State
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -73,13 +81,34 @@ const Admin: React.FC = () => {
                     setActiveCartsCount(active);
                 }
 
-                // 2. Fetch Total Traffic (Count of all rows)
-                const { count: trafficCount } = await supabase
+                // 2. Fetch Traffic Data (All rows)
+                // Note: For very large apps, we would use a DB view or RPC, but for this portfolio, client-side calc is fine.
+                const { data: trafficData } = await supabase
                     .from('site_traffic')
-                    .select('*', { count: 'exact', head: true });
+                    .select('guest_id, created_at');
                 
-                if (trafficCount !== null) {
-                    setTotalTraffic(trafficCount);
+                if (trafficData) {
+                    const totalViews = trafficData.length;
+                    const uniqueVisitors = new Set(trafficData.map(t => t.guest_id)).size;
+                    const avgPerVisitor = uniqueVisitors > 0 ? (totalViews / uniqueVisitors).toFixed(1) : '0';
+
+                    setTrafficStats({
+                        views: totalViews,
+                        visitors: uniqueVisitors,
+                        avg: parseFloat(avgPerVisitor)
+                    });
+
+                    // Calculate Monthly Traffic for Chart (Current Year)
+                    const currentYear = new Date().getFullYear();
+                    const months = new Array(12).fill(0);
+                    
+                    trafficData.forEach(t => {
+                        const date = new Date(t.created_at);
+                        if (date.getFullYear() === currentYear) {
+                            months[date.getMonth()]++;
+                        }
+                    });
+                    setMonthlyTraffic(months);
                 }
 
                 // 3. Fetch Total Sales (Sum of total_amount)
@@ -273,6 +302,9 @@ const Admin: React.FC = () => {
     }
   }
 
+  // Calculate max value for chart scaling
+  const maxTrafficValue = Math.max(...monthlyTraffic, 1);
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
@@ -370,15 +402,36 @@ const Admin: React.FC = () => {
           {activeTab === 'overview' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <div className="grid md:grid-cols-3 gap-6">
-                <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group">
+                
+                {/* Traffic Stats Card */}
+                <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group flex flex-col justify-between">
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <Users size={64} />
                   </div>
-                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Page Views</h3>
-                  <div className="text-4xl font-serif text-white">{totalTraffic}</div>
-                  <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> Live Tracking</div>
+                  <div>
+                    <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-4">Traffic Insights</h3>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <div className="text-3xl font-serif text-white">{trafficStats.visitors}</div>
+                                <div className="text-xs text-gray-500 flex items-center gap-1"><User size={10} /> Unique Visitors</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xl font-serif text-gray-300">{trafficStats.views}</div>
+                                <div className="text-xs text-gray-500 flex items-center gap-1 justify-end"><Eye size={10} /> Page Views</div>
+                            </div>
+                        </div>
+                        <div className="pt-3 border-t border-white/10 flex justify-between items-center text-sm">
+                            <span className="text-gray-400">Avg Pages/Visitor</span>
+                            <span className="text-amber-500 font-medium flex items-center gap-1">
+                                <MousePointerClick size={14} /> {trafficStats.avg}
+                            </span>
+                        </div>
+                    </div>
+                  </div>
                 </div>
 
+                {/* Sales Card */}
                 <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group">
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <BarChart3 size={64} />
@@ -388,6 +441,7 @@ const Admin: React.FC = () => {
                   <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> All Time</div>
                 </div>
 
+                {/* Active Carts Card */}
                 <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group">
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <ShoppingCart size={64} />
@@ -398,18 +452,44 @@ const Admin: React.FC = () => {
                 </div>
               </div>
 
-              {/* Fake Chart Visualization */}
+              {/* Traffic Chart Visualization */}
               <div className="bg-zinc-900 border border-white/10 p-8 rounded-2xl">
-                <h3 className="text-xl font-serif mb-6">Traffic Overview</h3>
-                <div className="flex items-end gap-2 h-48 w-full">
-                   {[40, 65, 34, 78, 56, 89, 45, 67, 88, 54, 76, 92].map((h, i) => (
-                     <div key={i} className="flex-1 bg-amber-900/40 hover:bg-amber-600 transition-colors rounded-t-sm relative group" style={{ height: `${h}%` }}>
-                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white text-black text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">{h * 10}</div>
-                     </div>
-                   ))}
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-xl font-serif">Traffic Overview ({new Date().getFullYear()})</h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="w-2 h-2 rounded-full bg-amber-600"></span> Live Data
+                    </div>
                 </div>
-                <div className="flex justify-between mt-4 text-xs text-gray-500 uppercase">
-                  <span>Jan</span><span>Dec</span>
+                
+                <div className="flex items-end gap-2 h-48 w-full border-b border-white/10 pb-1">
+                   {monthlyTraffic.map((count, i) => {
+                     // Calculate height percentage relative to max traffic, min 5% for visibility if 0
+                     const heightPct = count === 0 ? 5 : (count / maxTrafficValue) * 100;
+                     return (
+                        <div key={i} className="flex-1 flex flex-col justify-end group h-full relative">
+                            <motion.div 
+                                initial={{ height: '0%' }}
+                                animate={{ height: `${heightPct}%` }}
+                                transition={{ duration: 0.8, delay: i * 0.05 }}
+                                className={`
+                                    w-full rounded-t-sm relative transition-all duration-300
+                                    ${count > 0 ? 'bg-amber-900/40 hover:bg-amber-600' : 'bg-white/5'}
+                                `}
+                            >
+                                {count > 0 && (
+                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white text-black text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg font-bold">
+                                        {count} Visits
+                                    </div>
+                                )}
+                            </motion.div>
+                        </div>
+                     );
+                   })}
+                </div>
+                <div className="flex justify-between mt-4 text-xs text-gray-500 uppercase font-medium">
+                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(m => (
+                      <span key={m} className="flex-1 text-center">{m}</span>
+                  ))}
                 </div>
               </div>
             </motion.div>
