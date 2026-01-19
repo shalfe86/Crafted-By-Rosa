@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { PortfolioItem } from '../types';
+import { supabase } from '../lib/supabaseClient';
 
 interface CartContextType {
   cartItems: PortfolioItem[];
@@ -8,35 +9,70 @@ interface CartContextType {
   clearCart: () => void;
   cartTotal: number;
   cartCount: number;
+  guestId: string | null;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cartItems, setCartItems] = useState<PortfolioItem[]>([]);
+  const [guestId, setGuestId] = useState<string | null>(null);
 
-  // Load from local storage on mount
+  // 1. Initialize Guest ID
   useEffect(() => {
-    const savedCart = localStorage.getItem('rosa_cart');
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (e) {
-        console.error("Failed to parse cart", e);
-      }
+    let id = localStorage.getItem('rosa_guest_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('rosa_guest_id', id);
     }
+    setGuestId(id);
   }, []);
 
-  // Save to local storage on change
+  // 2. Load Cart from Supabase
   useEffect(() => {
-    localStorage.setItem('rosa_cart', JSON.stringify(cartItems));
-  }, [cartItems]);
+    if (!guestId) return;
+
+    const fetchRemoteCart = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('active_carts')
+          .select('items')
+          .eq('guest_id', guestId)
+          .single();
+
+        if (data && Array.isArray(data.items)) {
+          setCartItems(data.items);
+        }
+      } catch (error) {
+        console.error("Error fetching cart:", error);
+      }
+    };
+
+    fetchRemoteCart();
+  }, [guestId]);
+
+  // Helper to sync changes to Supabase
+  const syncCartToDb = async (newItems: PortfolioItem[]) => {
+    if (!guestId) return;
+    
+    // We use upsert to insert if new or update if exists
+    const { error } = await supabase
+      .from('active_carts')
+      .upsert({ 
+        guest_id: guestId, 
+        items: newItems,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) console.error("Failed to sync cart:", error);
+  };
 
   const addToCart = (item: PortfolioItem) => {
-    // For unique items, we might check duplicates, but for prints/general we allow multiples
-    // We add a temporary unique ID for the cart instance if we wanted to allow duplicates of same item ID
-    // keeping it simple for now.
-    setCartItems(prev => [...prev, item]);
+    setCartItems(prev => {
+      const newCart = [...prev, item];
+      syncCartToDb(newCart);
+      return newCart;
+    });
   };
 
   const removeFromCart = (itemId: string) => {
@@ -45,6 +81,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (index > -1) {
         const newCart = [...prev];
         newCart.splice(index, 1);
+        syncCartToDb(newCart);
         return newCart;
       }
       return prev;
@@ -53,6 +90,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => {
     setCartItems([]);
+    syncCartToDb([]);
   };
 
   const cartTotal = cartItems.reduce((total, item) => {
@@ -68,7 +106,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       removeFromCart, 
       clearCart,
       cartTotal,
-      cartCount: cartItems.length
+      cartCount: cartItems.length,
+      guestId
     }}>
       {children}
     </CartContext.Provider>

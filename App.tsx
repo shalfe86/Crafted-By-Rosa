@@ -8,6 +8,7 @@ import About from './pages/About';
 import Admin from './pages/Admin';
 import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
+import TrafficTracker from './components/TrafficTracker';
 import { AnimatePresence } from 'framer-motion';
 import { PortfolioProvider } from './context/PortfolioContext';
 import { CartProvider } from './context/CartContext';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
       <CartProvider>
         <Router>
           <ScrollToTop />
+          <TrafficTracker />
           <div className="bg-black min-h-screen text-white font-sans antialiased selection:bg-amber-500/30">
             <Navigation />
             

@@ -17,6 +17,11 @@ const Admin: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'portfolio' | 'artist'>('overview');
   
+  // Dashboard Stats
+  const [activeCartsCount, setActiveCartsCount] = useState(0);
+  const [totalTraffic, setTotalTraffic] = useState(0);
+  const [totalSales, setTotalSales] = useState(0);
+  
   // Edit/Add State
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<PortfolioItem>>({});
@@ -52,6 +57,52 @@ const Admin: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Fetch Dashboard Stats when Overview is active
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'overview') {
+        const fetchStats = async () => {
+            try {
+                // 1. Fetch active carts
+                const { data: activeData } = await supabase
+                    .from('active_carts')
+                    .select('items');
+                
+                if (activeData) {
+                    const active = activeData.filter((row: any) => Array.isArray(row.items) && row.items.length > 0).length;
+                    setActiveCartsCount(active);
+                }
+
+                // 2. Fetch Total Traffic (Count of all rows)
+                const { count: trafficCount } = await supabase
+                    .from('site_traffic')
+                    .select('*', { count: 'exact', head: true });
+                
+                if (trafficCount !== null) {
+                    setTotalTraffic(trafficCount);
+                }
+
+                // 3. Fetch Total Sales (Sum of total_amount)
+                const { data: salesData } = await supabase
+                    .from('purchases')
+                    .select('total_amount');
+
+                if (salesData) {
+                    const total = salesData.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+                    setTotalSales(total);
+                }
+
+            } catch (e) {
+                console.error("Error fetching stats", e);
+            }
+        };
+        fetchStats();
+        
+        // Optional: Set up an interval to poll every minute
+        const interval = setInterval(fetchStats, 60000);
+        return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, activeTab]);
 
   // Update artist form if context changes (e.g. after reset or initial fetch)
   useEffect(() => {
@@ -323,27 +374,27 @@ const Admin: React.FC = () => {
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <Users size={64} />
                   </div>
-                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Traffic</h3>
-                  <div className="text-4xl font-serif text-white">12,543</div>
-                  <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> +12% this week</div>
+                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Page Views</h3>
+                  <div className="text-4xl font-serif text-white">{totalTraffic}</div>
+                  <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> Live Tracking</div>
                 </div>
 
                 <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group">
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <BarChart3 size={64} />
                   </div>
-                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Sales</h3>
-                  <div className="text-4xl font-serif text-white">$4,285</div>
-                  <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> +5% this week</div>
+                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Revenue</h3>
+                  <div className="text-4xl font-serif text-white">${totalSales.toFixed(2)}</div>
+                  <div className="text-green-500 text-sm flex items-center gap-1 mt-2"><TrendingUp size={14} /> All Time</div>
                 </div>
 
                 <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl relative overflow-hidden group">
                   <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                     <ShoppingCart size={64} />
                   </div>
-                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Active Carts</h3>
-                  <div className="text-4xl font-serif text-white">8</div>
-                  <div className="text-gray-500 text-sm mt-2">Checking out now</div>
+                  <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2">Active Carts Live</h3>
+                  <div className="text-4xl font-serif text-amber-500">{activeCartsCount}</div>
+                  <div className="text-gray-500 text-sm mt-2">Potential customers</div>
                 </div>
               </div>
 
